@@ -66,4 +66,6 @@ build.bat        &rem -> dist\MomongaPet.exe (Python 없이 실행되는 파일 
 
 `sprites\` 폴더의 그림이 exe 안에 기본 스프라이트로 들어가요. 아이콘은 `icon.png`가 있으면 그걸, 없으면 `sprites\idle_01.png`로 만들어요.
 
+`캐릭터 바꾸기 프롬프트.txt`(친구가 GPT로 자기 캐릭터를 만들 때 쓰는 안내)도 `dist`에 같이 복사돼요. 완성본은 [Releases](https://github.com/namgiju/MomongaPet-Win/releases)에서 받을 수 있어요.
+
 서명이 없는 exe라서 **스마트 앱 컨트롤**이 켜진 PC에서는 실행이 막혀요 (Windows 보안 → 앱 및 브라우저 컨트롤). 그런 PC에서는 `run.bat`으로 실행하세요.

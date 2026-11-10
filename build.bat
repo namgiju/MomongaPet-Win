@@ -9,5 +9,7 @@ if not exist "%PY%" set "PY=python"
 set "ICON="
 if exist build\icon.ico set "ICON=--icon build\icon.ico"
 "%PY%" -m PyInstaller --noconfirm --clean --onefile --windowed --name MomongaPet %ICON% --add-data "sprites;sprites" momongapet.py || exit /b 1
+rem copy the friend's guide (prompt .txt) next to the exe
+"%PY%" -c "import glob, shutil; [shutil.copy(f, 'dist') for f in glob.glob('*.txt') if f != 'requirements.txt']"
 echo.
 echo Done: dist\MomongaPet.exe
