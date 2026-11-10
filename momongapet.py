@@ -48,6 +48,9 @@ WAKE_IDLE_TIME = 1.5            # 깨어나서 멍하니 있는 시간
 # 화면 바닥(작업표시줄 위)에서 다닐 가로 범위 (주 화면 기준 px, None이면 화면 전체)
 FLOOR_RANGE = None
 
+# 게임·영상 등 전체화면 창이 펫이 있는 화면을 덮으면 숨었다가, 나가면 다시 나타남
+HIDE_ON_FULLSCREEN = True
+
 # 창 위로 점프
 WINDOW_JUMP_CHANCE = 0.15
 WALK_OFF_EDGE_CHANCE = 0.10
@@ -109,7 +112,7 @@ class WinInfo:
 # MARK: - Win32
 user32 = ctypes.WinDLL("user32", use_last_error=True)
 dwmapi = ctypes.WinDLL("dwmapi")
-kernel32 = ctypes.WinDLL("kernel32")
+kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
 
 GWL_EXSTYLE = -20
 WS_EX_TOPMOST = 0x00000008
@@ -136,6 +139,18 @@ user32.GetWindowRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
 user32.GetForegroundWindow.restype = wintypes.HWND
 user32.GetAncestor.argtypes = [wintypes.HWND, wintypes.UINT]
 user32.GetAncestor.restype = wintypes.HWND
+user32.MonitorFromWindow.argtypes = [wintypes.HWND, wintypes.DWORD]
+user32.MonitorFromWindow.restype = wintypes.HMONITOR
+user32.GetMonitorInfoW.argtypes = [wintypes.HMONITOR, ctypes.c_void_p]
+kernel32.CreateMutexW.argtypes = [ctypes.c_void_p, wintypes.BOOL, wintypes.LPCWSTR]
+kernel32.CreateMutexW.restype = wintypes.HANDLE
+MONITOR_DEFAULTTONEAREST = 2
+ERROR_ALREADY_EXISTS = 183
+
+
+class MONITORINFO(ctypes.Structure):
+    _fields_ = [("cbSize", wintypes.DWORD), ("rcMonitor", wintypes.RECT),
+                ("rcWork", wintypes.RECT), ("dwFlags", wintypes.DWORD)]
 dwmapi.DwmGetWindowAttribute.argtypes = [wintypes.HWND, wintypes.DWORD, ctypes.c_void_p, wintypes.DWORD]
 
 
@@ -226,6 +241,29 @@ def standable_window(w):
     if scr is None or f.top - PET_H < scr.availableGeometry().y():
         return None
     return WinInfo(w.hwnd, f)
+
+
+def fullscreen_rect():
+    """맨 앞 창이 모니터 전체를 덮고 있으면 그 모니터 영역(논리 좌표), 아니면 None.
+    최대화한 일반 창은 작업표시줄을 비워 두므로 해당 안 됨"""
+    h = foreground_hwnd()
+    if not h or window_pid(h) == os.getpid():
+        return None
+    cls = ctypes.create_unicode_buffer(64)
+    user32.GetClassNameW(h, cls, 64)
+    if cls.value in SKIP_CLASSES:                       # 바탕화면·작업표시줄
+        return None
+    r = wintypes.RECT()
+    if not user32.GetWindowRect(h, ctypes.byref(r)):
+        return None
+    mi = MONITORINFO()
+    mi.cbSize = ctypes.sizeof(MONITORINFO)
+    if not user32.GetMonitorInfoW(user32.MonitorFromWindow(h, MONITOR_DEFAULTTONEAREST), ctypes.byref(mi)):
+        return None
+    m = mi.rcMonitor
+    if r.left <= m.left and r.top <= m.top and r.right >= m.right and r.bottom >= m.bottom:
+        return to_logical(m.left, m.top, m.right, m.bottom)
+    return None
 
 
 def foreground_hwnd():
@@ -382,6 +420,8 @@ class Pet(QWidget):
         self.watch_left = False         # 마우스가 펫 왼쪽에 있음
         self.drag_time = 0.0
         self.last_tick = now()
+        self.fullscreen_hidden = False  # 전체화면 창 때문에 숨어 있음
+        self.last_fullscreen_poll = 0.0
 
         # 잠
         self.away_sleep = False         # 자리 비움으로 잠든 건지 (낮잠과 구분)
@@ -605,6 +645,20 @@ class Pet(QWidget):
                 self.wake_up()
             elif self.is_away and self.state in ("idle", "walk", "dizzy", "watch"):
                 self.sleep(True)
+
+        # 전체화면 창이 펫이 있는 화면을 덮으면 숨고 멈춤 (0.5초 간격, 잡고 있을 땐 안 함)
+        if HIDE_ON_FULLSCREEN and self.state != "drag" and t - self.last_fullscreen_poll >= 0.5:
+            self.last_fullscreen_poll = t
+            fs = fullscreen_rect()
+            covered = fs is not None and fs.contains(self.midx, self.py - 1)
+            if covered and not self.fullscreen_hidden:
+                self.fullscreen_hidden = True
+                self.hide()
+            elif not covered and self.fullscreen_hidden:
+                self.fullscreen_hidden = False
+                self.show()
+        if self.fullscreen_hidden:
+            return
 
         # 드래그 중엔 이동·중력·타이머 전부 정지하고 흔들림만
         if self.state == "drag":
@@ -940,6 +994,11 @@ class Pet(QWidget):
 
 
 def main():
+    # 이미 켜져 있으면 그냥 종료 (자동 실행 + 직접 실행으로 펫이 둘 생기지 않게)
+    global _instance_mutex
+    _instance_mutex = kernel32.CreateMutexW(None, False, "Local\\MomongaPet")
+    if ctypes.get_last_error() == ERROR_ALREADY_EXISTS:
+        return
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)
     pet = Pet()  # noqa: F841

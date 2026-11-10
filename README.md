@@ -6,6 +6,7 @@
 - 잡아서 끌면 대롱대롱 흔들리고, 던지면 날아가서 떨어져요
 - 맨 앞 창 위로 뛰어올라가 그 위에서 놀아요 (창을 움직이면 떨어지고, 창이 가려지거나 닫혀도 떨어짐)
 - 3분 동안 컴퓨터를 안 쓰면 잠들고, 다시 쓰면 깨요
+- 게임·영상을 전체화면으로 띄우면 숨었다가, 나가면 다시 나타나요
 
 ## 실행
 
@@ -56,3 +57,13 @@ python tools\slice_sprites.py sheet.png idle      &rem -> sprites\idle_01.png ..
 ## 설정
 
 크기, 속도, 잠드는 시간, 점프 확률 등은 `momongapet.py` 맨 위에 있어요.
+
+## exe로 만들기
+
+```bat
+build.bat        &rem -> dist\MomongaPet.exe (Python 없이 실행되는 파일 하나, 약 46MB)
+```
+
+`sprites\` 폴더의 그림이 exe 안에 기본 스프라이트로 들어가요. 아이콘은 `icon.png`가 있으면 그걸, 없으면 `sprites\idle_01.png`로 만들어요.
+
+서명이 없는 exe라서 **스마트 앱 컨트롤**이 켜진 PC에서는 실행이 막혀요 (Windows 보안 → 앱 및 브라우저 컨트롤). 그런 PC에서는 `run.bat`으로 실행하세요.
